@@ -1,5 +1,7 @@
 import type { Profile, PersonalInfo, Snippet } from "../shared/types";
 import { loadAll, saveProfile, saveSnippets } from "../shared/storage";
+import { removeMapping, exportJson, importJson } from "../shared/storage";
+import type { Mapping } from "../shared/types";
 
 const PERSONAL_FIELDS: { key: keyof PersonalInfo; type?: string }[] = [
   { key: "first_name" }, { key: "last_name" }, { key: "email", type: "email" },
@@ -24,7 +26,7 @@ async function init(): Promise<void> {
   const data = await loadAll();
   renderProfile(data.profile);
   renderSnippets(data.snippets);
-  // Mappings tab renders in Task 25.
+  renderMappings(data.mappings);
 }
 
 function renderProfile(p: Profile): void {
@@ -159,6 +161,70 @@ function renderSnippets(snippets: Snippet[]): void {
     });
   };
   draw();
+}
+
+function renderMappings(mappings: Record<string, Mapping[]>): void {
+  const root = document.getElementById("tab-mappings")!;
+  const draw = (): void => {
+    const domains = Object.keys(mappings).sort();
+    root.innerHTML = `
+      <h3>Learned mappings</h3>
+      ${domains.length === 0 ? "<p>No mappings learned yet. Ctrl-click a field on a form to teach jobfill.</p>" : ""}
+      ${domains.map(d => `
+        <details><summary>${escapeAttr(d)} (${mappings[d]!.length})</summary>
+          <ul>
+            ${mappings[d]!.map((m, i) => `
+              <li>
+                <code>${escapeAttr(m.field_signature.label || m.field_signature.name || m.field_signature.id || "(field)")}</code>
+                → <code>${escapeAttr(describeFill(m))}</code>
+                <button data-action="rm-m" data-d="${escapeAttr(d)}" data-i="${i}">×</button>
+              </li>
+            `).join("")}
+          </ul>
+        </details>
+      `).join("")}
+      <div class="footer">
+        <button id="export-json">Export JSON</button>
+        <button id="import-json">Import JSON</button>
+        <input id="import-file" type="file" accept=".json" style="display:none">
+      </div>
+    `;
+    root.querySelectorAll<HTMLButtonElement>('[data-action="rm-m"]').forEach(btn => {
+      btn.addEventListener("click", async () => {
+        await removeMapping(btn.dataset["d"]!, Number(btn.dataset["i"]));
+        const data = await loadAll();
+        renderMappings(data.mappings);
+      });
+    });
+    root.querySelector("#export-json")!.addEventListener("click", async () => {
+      const json = await exportJson();
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `jobfill-export-${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+    root.querySelector("#import-json")!.addEventListener("click", () => {
+      (root.querySelector("#import-file") as HTMLInputElement).click();
+    });
+    root.querySelector("#import-file")!.addEventListener("change", async (ev) => {
+      const file = (ev.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      await importJson(text);
+      window.location.reload();
+    });
+  };
+  draw();
+}
+
+function describeFill(m: Mapping): string {
+  const f = m.fills_with;
+  if (f.kind === "profile_path") return f.path;
+  if (f.kind === "snippet_id")   return `snippet:${f.id || "picker"}`;
+  if (f.kind === "literal")      return `"${f.value}"`;
+  return "skip";
 }
 
 init();
