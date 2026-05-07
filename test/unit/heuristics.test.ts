@@ -32,4 +32,14 @@ describe("matchHeuristic", () => {
     const r = matchHeuristic(sig({ label: "Favorite color" }));
     expect(r).toBeNull();
   });
+
+  it("matches phone in underscore-separated name like `applicant_phone`", () => {
+    const r = matchHeuristic(sig({ name: "applicant_phone", type: "tel" }));
+    expect(r?.fills_with).toEqual({ kind: "profile_path", path: "personal.phone" });
+  });
+
+  it("matches city in underscore-separated name like `home_city`", () => {
+    const r = matchHeuristic(sig({ name: "home_city" }));
+    expect(r?.fills_with).toEqual({ kind: "profile_path", path: "personal.city" });
+  });
 });
