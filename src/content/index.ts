@@ -64,7 +64,7 @@ async function resolveFillValue(
     if (!fk.id) return null; // requires picker
     const s = snippets.find(x => x.id === fk.id);
     if (!s) return null;
-    const out = interpolate(s.body, pageVars as unknown as Record<string, string>);
+    const out = interpolate(s.body, { company: pageVars.company, role: pageVars.role });
     return out.text;
   }
   if (fk.kind === "skip") return null;
