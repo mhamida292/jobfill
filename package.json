@@ -1,0 +1,23 @@
+{
+  "name": "jobfill",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "run:firefox": "web-ext run --source-dir=dist",
+    "sign": "web-ext sign --source-dir=dist --channel=unlisted",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/firefox-webext-browser": "^120.0.0",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.24.0",
+    "happy-dom": "^15.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "web-ext": "^8.3.0"
+  }
+}
