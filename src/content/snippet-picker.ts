@@ -55,3 +55,109 @@ function countOverlap(a: string[], b: string[]): number {
   const setB = new Set(b);
   return a.filter(t => setB.has(t)).length;
 }
+
+import { loadAll } from "../shared/storage";
+import { interpolate, extractPageVars } from "../shared/interpolate";
+
+const STYLE_CSS = `
+  .jobfill-picker { position: absolute; z-index: 2147483647; background:#111827;
+    color:#f3f4f6; padding:8px; border-radius:8px; box-shadow:0 4px 24px rgba(0,0,0,.4);
+    font: 12px/1.4 system-ui,sans-serif; width: 380px; max-height: 60vh; overflow:auto; }
+  .jobfill-picker input { width: 100%; background:#1f2937; color:inherit;
+    border:1px solid #374151; border-radius:4px; padding:4px 6px; font:inherit; }
+  .jobfill-picker ul { list-style:none; margin:6px 0 0; padding:0; }
+  .jobfill-picker li { padding:6px 8px; cursor:pointer; border-radius:4px; }
+  .jobfill-picker li.sel, .jobfill-picker li:hover { background:#374151; }
+  .jobfill-picker .tag { font-size:10px; padding:1px 4px; border-radius:3px; background:#1f2937; margin-left:4px; }
+`;
+
+let pickerRoot: HTMLElement | null = null;
+
+export async function openSnippetPicker(target: HTMLElement, fieldTags: string[] = []): Promise<void> {
+  ensureStyle();
+  closePicker();
+  const data = await loadAll();
+  const pageVars = extractPageVars(document, new URL(location.href));
+  const questionText = inferQuestionText(target);
+
+  const root = document.createElement("div");
+  root.className = "jobfill-picker";
+  const rect = target.getBoundingClientRect();
+  root.style.left = `${rect.left + window.scrollX}px`;
+  root.style.top  = `${rect.bottom + window.scrollY + 4}px`;
+  root.innerHTML = `<input type="text" placeholder="Filter…"/><ul></ul>`;
+
+  let filter = "";
+  let sel = 0;
+  const input = root.querySelector("input")!;
+  const list = root.querySelector("ul")!;
+
+  function render(): void {
+    const ranked = rankSnippets(data.snippets, { fieldTags, questionText, filter });
+    list.innerHTML = ranked.map((r, i) => `
+      <li data-id="${r.snippet.id}" class="${i === sel ? "sel" : ""}">
+        ${escapeHtml(r.snippet.label)}${r.snippet.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("")}
+      </li>
+    `).join("");
+    list.querySelectorAll<HTMLLIElement>("li").forEach((li, i) => {
+      li.addEventListener("click", () => insert(ranked[i]!.snippet));
+    });
+  }
+
+  function insert(s: import("../shared/types").Snippet): void {
+    const out = interpolate(s.body, { company: pageVars.company, role: pageVars.role });
+    if (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) {
+      target.value = out.text;
+      target.dispatchEvent(new Event("input", { bubbles: true }));
+    } else if (target.isContentEditable) {
+      target.textContent = out.text;
+    }
+    if (out.unresolved.length > 0) {
+      console.warn("[jobfill] unresolved snippet vars:", out.unresolved);
+    }
+    closePicker();
+  }
+
+  input.addEventListener("input", () => { filter = input.value; sel = 0; render(); });
+  input.addEventListener("keydown", (ev) => {
+    const ranked = rankSnippets(data.snippets, { fieldTags, questionText, filter });
+    if (ev.key === "ArrowDown") { sel = Math.min(sel + 1, ranked.length - 1); render(); ev.preventDefault(); }
+    if (ev.key === "ArrowUp")   { sel = Math.max(sel - 1, 0); render(); ev.preventDefault(); }
+    if (ev.key === "Enter")     { if (ranked[sel]) insert(ranked[sel]!.snippet); ev.preventDefault(); }
+    if (ev.key === "Escape")    { closePicker(); }
+  });
+
+  document.documentElement.appendChild(root);
+  pickerRoot = root;
+  input.focus();
+  render();
+}
+
+export function closePicker(): void {
+  pickerRoot?.remove();
+  pickerRoot = null;
+}
+
+function inferQuestionText(target: HTMLElement): string {
+  const aria = target.getAttribute("aria-label");
+  if (aria) return aria;
+  if (target.id) {
+    const lab = document.querySelector(`label[for="${target.id.replace(/[^a-zA-Z0-9_-]/g, "\\$&")}"]`);
+    if (lab?.textContent) return lab.textContent.trim();
+  }
+  const wrap = target.closest("label");
+  if (wrap?.textContent) return wrap.textContent.trim();
+  return target.getAttribute("placeholder") ?? "";
+}
+
+function ensureStyle(): void {
+  if (document.getElementById("jobfill-picker-style")) return;
+  const s = document.createElement("style");
+  s.id = "jobfill-picker-style";
+  s.textContent = STYLE_CSS;
+  document.head.appendChild(s);
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]!));
+}

@@ -7,11 +7,17 @@ import { fillElement, getProfileValue } from "./filler";
 import { interpolate, extractPageVars } from "../shared/interpolate";
 import { showOverlay } from "./overlay";
 import { attachTeachMode } from "./teach-mode";
+import { openSnippetPicker } from "./snippet-picker";
 
 browser.runtime.onMessage.addListener(async (msg: Message) => {
   if (msg.type === "trigger_fill") {
     const report = await fillCurrentForm();
     showOverlay(report);
+  } else if (msg.type === "trigger_snippet_picker") {
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && (focused instanceof HTMLTextAreaElement || focused instanceof HTMLInputElement || focused.isContentEditable)) {
+      await openSnippetPicker(focused);
+    }
   }
 });
 
@@ -32,7 +38,12 @@ async function fillCurrentForm(): Promise<FillReport> {
 
     const value = await resolveFillValue(match.fills_with, data.profile, pageVars, data.snippets);
     if (value === null) {
-      skipped.push({ signature: f.signature, reason: "snippet picker required (UI not yet implemented)" });
+      if (match.fills_with.kind === "snippet_id" && !match.fills_with.id) {
+        await openSnippetPicker(f.element, match.tags);
+        skipped.push({ signature: f.signature, reason: "snippet picker opened" });
+        continue;
+      }
+      skipped.push({ signature: f.signature, reason: "no value resolved" });
       continue;
     }
 
