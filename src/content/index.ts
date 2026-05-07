@@ -5,11 +5,12 @@ import { scanFields } from "./scanner";
 import { runCascade } from "./matchers";
 import { fillElement, getProfileValue } from "./filler";
 import { interpolate, extractPageVars } from "../shared/interpolate";
+import { showOverlay } from "./overlay";
 
 browser.runtime.onMessage.addListener(async (msg: Message) => {
   if (msg.type === "trigger_fill") {
     const report = await fillCurrentForm();
-    console.log("[jobfill] fill report", report);
+    showOverlay(report);
   }
 });
 
