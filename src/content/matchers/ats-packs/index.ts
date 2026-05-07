@@ -1,4 +1,5 @@
 import type { FieldSignature, FillKind } from "../../../shared/types";
+import { greenhousePack } from "./greenhouse";
 
 export interface AtsPack {
   name: string;
@@ -6,4 +7,4 @@ export interface AtsPack {
   match(sig: FieldSignature): { fills_with: FillKind; tags?: string[] } | null;
 }
 
-export const ATS_PACKS: AtsPack[] = [];
+export const ATS_PACKS: AtsPack[] = [greenhousePack];
