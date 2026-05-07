@@ -27,6 +27,10 @@ describe("getProfileValue", () => {
   it("returns empty for missing paths", () => {
     expect(getProfileValue(profile, "personal.nope")).toBe("");
   });
+  it("indexes into work_history arrays", () => {
+    const p = { ...profile, work_history: [{ company: "Acme", title: "", start_date: "", end_date: "", current: false, location: "", description: "" }] };
+    expect(getProfileValue(p, "work_history.0.company")).toBe("Acme");
+  });
 });
 
 describe("fillElement", () => {
