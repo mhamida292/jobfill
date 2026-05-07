@@ -41,7 +41,7 @@ export function rankSnippets(snippets: Snippet[], ctx: RankingContext): RankedSn
 
   ranked.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
-    return b.snippet.id.localeCompare(a.snippet.id);
+    return a.snippet.label.localeCompare(b.snippet.label);
   });
 
   return ranked;

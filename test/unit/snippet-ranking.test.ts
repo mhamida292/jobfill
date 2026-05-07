@@ -21,7 +21,7 @@ describe("rankSnippets", () => {
 
   it("falls back to lexical order when no signals", () => {
     const r = rankSnippets(snippets, { fieldTags: [], questionText: "" });
-    expect(r.map(x => x.snippet.id)).toEqual(["3", "2", "1"]); // alphabetical by label
+    expect(r.map(x => x.snippet.id)).toEqual(["3", "1", "2"]); // alphabetical by label: "Tell…" < "Why…company" < "Why…role"
   });
 
   it("filter substring scopes the candidate set", () => {
