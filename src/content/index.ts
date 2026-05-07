@@ -6,6 +6,7 @@ import { runCascade } from "./matchers";
 import { fillElement, getProfileValue } from "./filler";
 import { interpolate, extractPageVars } from "../shared/interpolate";
 import { showOverlay } from "./overlay";
+import { attachTeachMode } from "./teach-mode";
 
 browser.runtime.onMessage.addListener(async (msg: Message) => {
   if (msg.type === "trigger_fill") {
@@ -84,4 +85,5 @@ function stripSubdomain(host: string): string {
   return parts.length > 2 ? parts.slice(-2).join(".") : host;
 }
 
+attachTeachMode();
 console.log("[jobfill] content ready");
