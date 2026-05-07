@@ -37,4 +37,17 @@ describe("resolveOption", () => {
     const r = resolveOption("personal.work_authorization", "us_citizen", opts);
     expect(r).toBeNull();
   });
+
+  it("matches via token-level fuzzy when synonym words are reordered or interleaved", () => {
+    // Synonym "Permanent Resident" tokens are interleaved by "Status" — no synonym
+    // is a contiguous substring of the option text, so this can only match via
+    // the token-level fuzzy step.
+    const opts = [
+      { value: "1", text: "U.S. Citizen" },
+      { value: "2", text: "Permanent Status: Resident" },
+    ];
+    const r = resolveOption("personal.work_authorization", "permanent_resident", opts);
+    expect(r?.value).toBe("2");
+    expect(r?.confidence).toBe("low");
+  });
 });
