@@ -1,2 +1,28 @@
 <!doctype html>
-<html><head><meta charset="utf-8"></head><body><p>jobfill (under construction)</p></body></html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <nav class="tabs">
+    <button data-tab="profile" class="active">Profile</button>
+    <button data-tab="snippets">Snippets</button>
+    <button data-tab="mappings">Mappings</button>
+  </nav>
+  <section id="tab-profile" class="tab active">
+    <h3>Personal</h3>
+    <div id="personal-fields"></div>
+    <h3>Work history</h3>
+    <div id="work-list"></div>
+    <button id="add-work">+ Add job</button>
+    <h3>Education</h3>
+    <div id="edu-list"></div>
+    <button id="add-edu">+ Add school</button>
+    <div class="footer"><button id="save-profile">Save</button> <span id="save-status"></span></div>
+  </section>
+  <section id="tab-snippets" class="tab"></section>
+  <section id="tab-mappings" class="tab"></section>
+  <script src="popup.js"></script>
+</body>
+</html>
