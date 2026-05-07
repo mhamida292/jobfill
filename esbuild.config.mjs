@@ -6,6 +6,7 @@ const watch = process.argv.includes("--watch");
 await rm("dist", { recursive: true, force: true });
 await mkdir("dist", { recursive: true });
 await cp("manifest.json", "dist/manifest.json");
+await cp("src/icon.svg", "dist/icon.svg");
 await cp("src/popup/popup.html", "dist/popup.html").catch(() => {});
 await cp("src/popup/popup.css", "dist/popup.css").catch(() => {});
 

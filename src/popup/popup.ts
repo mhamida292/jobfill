@@ -134,7 +134,7 @@ function renderSnippets(snippets: Snippet[]): void {
         `).join("")}
       </div>
       <div class="footer">
-        <button id="add-s">+ Add snippet</button>
+        <button id="add-s" class="ghost">+ Add snippet</button>
         <button id="save-s">Save</button>
         <span id="snippet-status"></span>
       </div>
@@ -185,7 +185,7 @@ function renderMappings(mappings: Record<string, Mapping[]>): void {
       `).join("")}
       <div class="footer">
         <button id="export-json">Export JSON</button>
-        <button id="import-json">Import JSON</button>
+        <button id="import-json" class="ghost">Import JSON</button>
         <input id="import-file" type="file" accept=".json" style="display:none">
       </div>
     `;

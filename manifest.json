@@ -18,9 +18,19 @@
       "run_at": "document_idle"
     }
   ],
+  "icons": {
+    "16": "icon.svg",
+    "48": "icon.svg",
+    "128": "icon.svg"
+  },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "jobfill"
+    "default_title": "jobfill",
+    "default_icon": {
+      "16": "icon.svg",
+      "32": "icon.svg",
+      "48": "icon.svg"
+    }
   },
   "commands": {
     "fill-form": {

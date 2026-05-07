@@ -5,6 +5,18 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
+  <header class="header">
+    <div class="logo">
+      <svg viewBox="0 0 16 16" width="14" height="14">
+        <rect x="2" y="3" width="9" height="1.6" rx=".8" fill="#94a3b8"/>
+        <rect x="2" y="6.5" width="6" height="1.6" rx=".8" fill="#94a3b8"/>
+        <rect x="2" y="10" width="8" height="1.6" rx=".8" fill="#94a3b8"/>
+        <circle cx="12" cy="11" r="4" fill="#6366f1"/>
+        <path d="M10 11l1.4 1.4 2.4-2.6" stroke="#fff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
+    </div>
+    <div class="brand">jobfill</div>
+  </header>
   <nav class="tabs">
     <button data-tab="profile" class="active">Profile</button>
     <button data-tab="snippets">Snippets</button>
@@ -15,10 +27,10 @@
     <div id="personal-fields"></div>
     <h3>Work history</h3>
     <div id="work-list"></div>
-    <button id="add-work">+ Add job</button>
+    <button id="add-work" class="ghost">+ Add job</button>
     <h3>Education</h3>
     <div id="edu-list"></div>
-    <button id="add-edu">+ Add school</button>
+    <button id="add-edu" class="ghost">+ Add school</button>
     <div class="footer"><button id="save-profile">Save</button> <span id="save-status"></span></div>
   </section>
   <section id="tab-snippets" class="tab"></section>

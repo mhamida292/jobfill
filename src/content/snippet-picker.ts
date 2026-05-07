@@ -60,15 +60,39 @@ import { loadAll } from "../shared/storage";
 import { interpolate, extractPageVars } from "../shared/interpolate";
 
 const STYLE_CSS = `
-  .jobfill-picker { position: absolute; z-index: 2147483647; background:#111827;
-    color:#f3f4f6; padding:8px; border-radius:8px; box-shadow:0 4px 24px rgba(0,0,0,.4);
-    font: 12px/1.4 system-ui,sans-serif; width: 380px; max-height: 60vh; overflow:auto; }
-  .jobfill-picker input { width: 100%; background:#1f2937; color:inherit;
-    border:1px solid #374151; border-radius:4px; padding:4px 6px; font:inherit; }
-  .jobfill-picker ul { list-style:none; margin:6px 0 0; padding:0; }
-  .jobfill-picker li { padding:6px 8px; cursor:pointer; border-radius:4px; }
-  .jobfill-picker li.sel, .jobfill-picker li:hover { background:#374151; }
-  .jobfill-picker .tag { font-size:10px; padding:1px 4px; border-radius:3px; background:#1f2937; margin-left:4px; }
+  .jobfill-picker {
+    position: absolute; z-index: 2147483647;
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    color: #e2e8f0; padding: 10px; border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.6);
+    border: 1px solid rgba(99,102,241,.2);
+    font: 13px/1.5 system-ui, -apple-system, sans-serif;
+    width: 380px; max-height: 60vh; overflow: auto;
+  }
+  .jobfill-picker input {
+    width: 100%; background: #0f172a; color: inherit;
+    border: 1px solid #334155; border-radius: 8px;
+    padding: 7px 10px; font: inherit; box-sizing: border-box;
+  }
+  .jobfill-picker input:focus {
+    outline: 0; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.18);
+  }
+  .jobfill-picker ul { list-style: none; margin: 6px 0 0; padding: 0; }
+  .jobfill-picker li {
+    padding: 7px 10px; cursor: pointer; border-radius: 7px;
+    color: #cbd5e1; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  }
+  .jobfill-picker li.sel, .jobfill-picker li:hover {
+    background: rgba(99,102,241,.15); color: #e2e8f0;
+    box-shadow: inset 0 0 0 1px rgba(99,102,241,.25);
+  }
+  .jobfill-picker .tag {
+    font-size: 10px; padding: 2px 7px; border-radius: 10px;
+    background: #312e81; color: #a5b4fc; font-weight: 500;
+  }
+  .jobfill-picker .hint {
+    font-size: 11px; color: #64748b; padding: 6px 10px 0;
+  }
 `;
 
 let pickerRoot: HTMLElement | null = null;
@@ -85,7 +109,7 @@ export async function openSnippetPicker(target: HTMLElement, fieldTags: string[]
   const rect = target.getBoundingClientRect();
   root.style.left = `${rect.left + window.scrollX}px`;
   root.style.top  = `${rect.bottom + window.scrollY + 4}px`;
-  root.innerHTML = `<input type="text" placeholder="Filter…"/><ul></ul>`;
+  root.innerHTML = `<input type="text" placeholder="Filter snippets…"/><ul></ul><div class="hint">↑↓ navigate · Enter insert · Esc cancel</div>`;
 
   let filter = "";
   let sel = 0;

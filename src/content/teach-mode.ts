@@ -2,16 +2,38 @@ import type { FieldSignature, Mapping, FillKind } from "../shared/types";
 import { addMapping } from "../shared/storage";
 
 const STYLE_CSS = `
-  .jobfill-teach { position: absolute; z-index: 2147483647; background:#111827;
-    color:#f3f4f6; padding:10px; border-radius:8px; box-shadow:0 4px 24px rgba(0,0,0,.4);
-    font: 12px/1.4 system-ui,sans-serif; min-width:260px; }
-  .jobfill-teach h5 { margin:0 0 6px; font-size:12px; font-weight:600; }
-  .jobfill-teach label { display:flex; align-items:center; gap:6px; padding:2px 0; }
-  .jobfill-teach select, .jobfill-teach input[type=text] { background:#1f2937; color:inherit;
-    border:1px solid #374151; border-radius:4px; padding:2px 6px; font: inherit; }
-  .jobfill-teach .actions { display:flex; gap:8px; margin-top:8px; }
-  .jobfill-teach button { font:inherit; padding:4px 8px; border-radius:4px; border:1px solid #4b5563;
-    background:#374151; color:inherit; cursor:pointer; }
+  .jobfill-teach {
+    position: absolute; z-index: 2147483647;
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    color: #e2e8f0; padding: 14px 16px; border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.6);
+    border: 1px solid rgba(99,102,241,.2);
+    font: 13px/1.5 system-ui, -apple-system, sans-serif; min-width: 280px;
+  }
+  .jobfill-teach h5 {
+    margin: 0 0 10px; font-size: 11px; text-transform: uppercase;
+    letter-spacing: .6px; color: #64748b; font-weight: 600;
+  }
+  .jobfill-teach label { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; color: #cbd5e1; }
+  .jobfill-teach select, .jobfill-teach input[type=text] {
+    background: #0f172a; color: inherit;
+    border: 1px solid #334155; border-radius: 6px;
+    padding: 4px 8px; font: inherit;
+  }
+  .jobfill-teach select:focus, .jobfill-teach input[type=text]:focus {
+    outline: 0; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.18);
+  }
+  .jobfill-teach .actions { display: flex; gap: 6px; margin-top: 12px; }
+  .jobfill-teach button {
+    font: inherit; padding: 6px 12px; border-radius: 8px;
+    border: 0; background: #6366f1; color: #fff; cursor: pointer; font-weight: 500;
+    box-shadow: 0 4px 12px rgba(99,102,241,.3);
+  }
+  .jobfill-teach button:hover { background: #4f46e5; }
+  .jobfill-teach button.ghost {
+    background: transparent; border: 1px solid #334155; color: #cbd5e1; box-shadow: none;
+  }
+  .jobfill-teach button.ghost:hover { background: rgba(99,102,241,.08); }
 `;
 
 const PROFILE_PATHS = [
@@ -74,7 +96,7 @@ function openTeach(target: HTMLElement, x: number, y: number): void {
     </label>
     <div class="actions">
       <button data-action="save">Save</button>
-      <button data-action="cancel">Cancel</button>
+      <button data-action="cancel" class="ghost">Cancel</button>
     </div>
   `;
 
