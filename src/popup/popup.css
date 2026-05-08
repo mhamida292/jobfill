@@ -2,7 +2,7 @@
 body {
   margin: 0; font: 13px/1.5 system-ui, -apple-system, sans-serif;
   width: 460px; max-height: 600px; overflow: auto;
-  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  background: #0f172a;
   color: #e2e8f0;
 }
 .header {
@@ -21,9 +21,16 @@ body {
 .tabs button {
   flex: 1; padding: 11px 12px; background: none; border: 0; cursor: pointer;
   color: #64748b; font: inherit; font-weight: 500; position: relative;
+  border-radius: 0; box-shadow: none;
+}
+.tabs button:hover {
+  background: rgba(99,102,241,.06); color: #cbd5e1;
 }
 .tabs button.active {
   color: #e2e8f0; background: linear-gradient(180deg, rgba(99,102,241,.06), transparent);
+}
+.tabs button.active:hover {
+  background: linear-gradient(180deg, rgba(99,102,241,.10), transparent); color: #e2e8f0;
 }
 .tabs button.active::after {
   content: ""; position: absolute; bottom: -1px; left: 24%; right: 24%;
@@ -43,7 +50,7 @@ label > span {
 }
 input, select, textarea {
   width: 280px; padding: 6px 10px; font: inherit;
-  background: #0f172a; color: #e2e8f0;
+  background: #1e293b; color: #e2e8f0;
   border: 1px solid #334155; border-radius: 7px;
 }
 input:focus, select:focus, textarea:focus {
