@@ -34,7 +34,16 @@ export function fillElement(
     return fillSelect(el, value, profilePath);
   }
   if (el instanceof HTMLInputElement) {
+    if (el.type === "file") {
+      return { ok: false, reason: "file input — pick file manually" };
+    }
     if (el.type === "checkbox") {
+      // Group-aware fill: when the matched profile path holds a single value
+      // (e.g. personal.race) but the form renders one checkbox per option,
+      // tick only the option that matches the user's value and clear siblings.
+      if (profilePath && isGroupedCheckbox(el)) {
+        return fillCheckboxGroup(el, value);
+      }
       el.checked = isTruthy(value);
       el.dispatchEvent(new Event("change", { bubbles: true }));
       return { ok: true };
@@ -95,9 +104,83 @@ function labelTextFor(el: HTMLElement): string {
 }
 
 function cssEscape(s: string): string {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+    return CSS.escape(s);
+  }
   return s.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
 }
 
 function isTruthy(v: string): boolean {
   return /^(true|yes|1|y|on)$/i.test(v.trim());
+}
+
+// A checkbox is "grouped" if it has siblings that share its `name` (the standard
+// HTML pattern for multi-select) or if it sits inside a fieldset/role=group with
+// other checkboxes.
+function isGroupedCheckbox(el: HTMLInputElement): boolean {
+  if (el.name && el.form) {
+    const sib = el.form.querySelectorAll<HTMLInputElement>(
+      `input[type="checkbox"][name="${cssEscape(el.name)}"]`,
+    );
+    if (sib.length > 1) return true;
+  }
+  const group = el.closest("fieldset, [role=\"group\"], [role=\"radiogroup\"]");
+  if (group) {
+    const cbs = group.querySelectorAll('input[type="checkbox"]');
+    if (cbs.length > 1) return true;
+  }
+  return false;
+}
+
+// Tick only the checkbox in the group whose option label matches `value`.
+// Clears the others so re-fills don't accumulate stale checks.
+function fillCheckboxGroup(anchor: HTMLInputElement, value: string): FillResult {
+  const group = collectGroup(anchor);
+  if (group.length === 0) return { ok: false, reason: "empty checkbox group" };
+
+  const target = pickGroupOption(group, value);
+  if (!target) return { ok: false, reason: "no matching option in group" };
+
+  for (const cb of group) {
+    const want = cb === target;
+    if (cb.checked !== want) {
+      cb.checked = want;
+      cb.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }
+  return { ok: true };
+}
+
+function collectGroup(anchor: HTMLInputElement): HTMLInputElement[] {
+  if (anchor.name && anchor.form) {
+    const sib = Array.from(anchor.form.querySelectorAll<HTMLInputElement>(
+      `input[type="checkbox"][name="${cssEscape(anchor.name)}"]`,
+    ));
+    if (sib.length > 1) return sib;
+  }
+  const wrapper = anchor.closest("fieldset, [role=\"group\"], [role=\"radiogroup\"]");
+  if (wrapper) {
+    return Array.from(wrapper.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'));
+  }
+  return [anchor];
+}
+
+function pickGroupOption(group: HTMLInputElement[], value: string): HTMLInputElement | null {
+  const v = value.trim().toLowerCase();
+  if (!v) return null;
+  // 1) Exact value match (case-insensitive).
+  for (const cb of group) {
+    if (cb.value && cb.value.toLowerCase() === v) return cb;
+  }
+  // 2) Exact label-text match.
+  for (const cb of group) {
+    const label = labelTextFor(cb).toLowerCase();
+    if (label && label === v) return cb;
+  }
+  // 3) Fuzzy contains on label text.
+  for (const cb of group) {
+    const label = labelTextFor(cb).toLowerCase();
+    if (label && label.includes(v)) return cb;
+  }
+  return null;
 }

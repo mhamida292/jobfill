@@ -42,4 +42,24 @@ describe("matchHeuristic", () => {
     const r = matchHeuristic(sig({ name: "home_city" }));
     expect(r?.fills_with).toEqual({ kind: "profile_path", path: "personal.city" });
   });
+
+  it("routes 'Describe your role' textareas to work_history.0.description", () => {
+    const r = matchHeuristic(sig({ label: "Describe your role and responsibilities", type: "textarea" }));
+    expect(r?.fills_with).toEqual({ kind: "profile_path", path: "work_history.0.description" });
+  });
+
+  it("routes 'Job description' to work_history.0.description", () => {
+    const r = matchHeuristic(sig({ label: "Job Description", type: "textarea" }));
+    expect(r?.fills_with).toEqual({ kind: "profile_path", path: "work_history.0.description" });
+  });
+
+  it("uses group_label for race/ethnicity checkbox groups when label is just the option", () => {
+    const r = matchHeuristic(sig({ label: "Asian", group_label: "Race / Ethnicity", type: "checkbox" }));
+    expect(r?.fills_with).toEqual({ kind: "profile_path", path: "personal.race" });
+  });
+
+  it("matches Workday's data-automation-id for gender", () => {
+    const r = matchHeuristic(sig({ data_automation_id: "formField-gender", type: "select" }));
+    expect(r?.fills_with).toEqual({ kind: "profile_path", path: "personal.gender" });
+  });
 });

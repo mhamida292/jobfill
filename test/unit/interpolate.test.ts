@@ -31,4 +31,40 @@ describe("extractPageVars", () => {
     expect(vars.company.toLowerCase()).toContain("acme");
     expect(vars.role).toMatch(/(Software Engineer|Senior SWE)/i);
   });
+
+  it("strips trailing ' | section' suffix from title-derived company", () => {
+    const dom = new DOMParser().parseFromString(
+      "<html><head><title>Backend Engineer at Acme | Careers</title></head><body></body></html>",
+      "text/html"
+    );
+    const vars = extractPageVars(dom, new URL("https://example.com/jobs/1"));
+    expect(vars.company).toBe("Acme");
+  });
+
+  it("strips trailing ' - section' suffix from title-derived company", () => {
+    const dom = new DOMParser().parseFromString(
+      "<html><head><title>Software Engineer at Acme - Jobs</title></head><body></body></html>",
+      "text/html"
+    );
+    const vars = extractPageVars(dom, new URL("https://example.com/jobs/1"));
+    expect(vars.company).toBe("Acme");
+  });
+
+  it("strips trailing ' · section' suffix from title-derived company", () => {
+    const dom = new DOMParser().parseFromString(
+      "<html><head><title>Engineer at Acme · Engineering</title></head><body></body></html>",
+      "text/html"
+    );
+    const vars = extractPageVars(dom, new URL("https://example.com/jobs/1"));
+    expect(vars.company).toBe("Acme");
+  });
+
+  it("falls back to host as-is for localhost (no dots)", () => {
+    const dom = new DOMParser().parseFromString(
+      "<html><head><title>Apply</title></head><body></body></html>",
+      "text/html"
+    );
+    const vars = extractPageVars(dom, new URL("http://localhost:3000/apply"));
+    expect(vars.company).toBe("localhost");
+  });
 });

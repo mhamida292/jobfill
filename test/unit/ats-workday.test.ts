@@ -15,4 +15,21 @@ describe("workdayPack", () => {
     expect(workdayPack.match({ label: "Email Address", name: "email", id: "", placeholder: "", type: "email" })?.fills_with)
       .toEqual({ kind: "profile_path", path: "personal.email" });
   });
+
+  it("matches Workday's data-automation-id attribute (most stable signal)", () => {
+    expect(workdayPack.match({
+      label: "", name: "", id: "", placeholder: "", type: "text",
+      data_automation_id: "formField-firstName",
+    })?.fills_with).toEqual({ kind: "profile_path", path: "personal.first_name" });
+
+    expect(workdayPack.match({
+      label: "", name: "", id: "", placeholder: "", type: "text",
+      data_automation_id: "formField-gender",
+    })?.fills_with).toEqual({ kind: "profile_path", path: "personal.gender" });
+
+    expect(workdayPack.match({
+      label: "", name: "", id: "", placeholder: "", type: "text",
+      data_automation_id: "formField-veteran-status",
+    })?.fills_with).toEqual({ kind: "profile_path", path: "personal.veteran_status" });
+  });
 });

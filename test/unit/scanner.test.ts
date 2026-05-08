@@ -60,4 +60,75 @@ describe("scanFields", () => {
     const fields = scanFields(doc.body);
     expect(fields.map(f => f.signature.id)).toEqual(["f"]);
   });
+
+  it("includes file inputs (so the overlay can flag them as manual)", () => {
+    const doc = makeDoc(`<input id="resume" type="file">`);
+    const fields = scanFields(doc.body);
+    expect(fields).toHaveLength(1);
+    expect(fields[0]!.signature.type).toBe("file");
+  });
+
+  it("captures data-automation-id when present", () => {
+    const doc = makeDoc(`<input id="x" type="text" data-automation-id="formField-firstName">`);
+    const fields = scanFields(doc.body);
+    expect(fields[0]!.signature.data_automation_id).toBe("formField-firstName");
+  });
+
+  it("aria-labelledby with multiple IDs concatenates referenced text", () => {
+    const doc = makeDoc(`
+      <span id="lbl-a">Phone</span>
+      <span id="lbl-b">Number</span>
+      <input id="p" type="tel" aria-labelledby="lbl-a lbl-b">
+    `);
+    expect(scanFields(doc.body)[0]!.signature.label).toBe("Phone Number");
+  });
+
+  it("strips the input out of a wrapping label without using string replace", () => {
+    // The wrapping label says "Name Jane" — naive string replace of "Jane" would
+    // leave "Name". The DOM walk should ignore the input element entirely.
+    const doc = makeDoc(`
+      <label>Name <input id="n" type="text" value="Jane"></label>
+    `);
+    expect(scanFields(doc.body)[0]!.signature.label).toBe("Name");
+  });
+
+  it("walks ancestor chain to find a question label nested 2-3 levels deep (Workday-like)", () => {
+    const doc = makeDoc(`
+      <div class="row">
+        <div class="question">What is your gender?</div>
+        <div class="answer">
+          <div class="control">
+            <input id="g" type="text">
+          </div>
+        </div>
+      </div>
+    `);
+    expect(scanFields(doc.body)[0]!.signature.label).toBe("What is your gender?");
+  });
+
+  it("captures a fieldset legend as group_label for grouped checkboxes", () => {
+    const doc = makeDoc(`
+      <fieldset>
+        <legend>Race / Ethnicity</legend>
+        <label><input type="checkbox" name="race" value="asian"> Asian</label>
+        <label><input type="checkbox" name="race" value="black"> Black</label>
+      </fieldset>
+    `);
+    const fields = scanFields(doc.body);
+    expect(fields).toHaveLength(2);
+    expect(fields[0]!.signature.group_label).toBe("Race / Ethnicity");
+    expect(fields[1]!.signature.group_label).toBe("Race / Ethnicity");
+  });
+
+  it("captures aria-labelledby group label for role=group containers", () => {
+    const doc = makeDoc(`
+      <h4 id="qh">Veteran Status</h4>
+      <div role="group" aria-labelledby="qh">
+        <label><input type="checkbox" name="vet" value="yes"> Yes</label>
+        <label><input type="checkbox" name="vet" value="no"> No</label>
+      </div>
+    `);
+    const fields = scanFields(doc.body);
+    expect(fields[0]!.signature.group_label).toBe("Veteran Status");
+  });
 });

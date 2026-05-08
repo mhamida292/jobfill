@@ -9,7 +9,18 @@ import { showOverlay } from "./overlay";
 import { attachTeachMode } from "./teach-mode";
 import { openSnippetPicker } from "./snippet-picker";
 
+// In iframes, only activate when the user has opted this hostname in.
+// Top frames always activate (matches the v0.1.0 behavior).
+const inIframe = (() => { try { return window.top !== window.self; } catch { return true; } })();
+
+async function isIframeOptedIn(): Promise<boolean> {
+  const data = await loadAll();
+  const host = location.hostname;
+  return data.settings.iframe_domains.some(d => host === d || host.endsWith(`.${d}`));
+}
+
 browser.runtime.onMessage.addListener(async (msg: Message) => {
+  if (inIframe && !(await isIframeOptedIn())) return;
   if (msg.type === "trigger_fill") {
     const report = await fillCurrentForm();
     showOverlay(report);
@@ -33,6 +44,13 @@ async function fillCurrentForm(): Promise<FillReport> {
   const pageVars = extractPageVars(document, new URL(location.href));
 
   for (const f of fields) {
+    // File inputs cannot be auto-filled by extensions (browser security).
+    // Surface them so the user can find the upload spot quickly.
+    if (f.element instanceof HTMLInputElement && f.element.type === "file") {
+      highlightManualField(f.element);
+      skipped.push({ signature: f.signature, reason: "file upload (manual)" });
+      continue;
+    }
     const match = runCascade(f.signature, learned, host);
     if (!match) { skipped.push({ signature: f.signature, reason: "no match" }); continue; }
 
@@ -96,5 +114,37 @@ function stripSubdomain(host: string): string {
   return parts.length > 2 ? parts.slice(-2).join(".") : host;
 }
 
-attachTeachMode();
-console.log("[jobfill] content ready");
+// Briefly outline a field that the user has to fill in by hand (e.g., file uploads),
+// so the post-fill overlay's "skipped" entries are easy to locate on the page.
+const HIGHLIGHT_STYLE_ID = "jobfill-highlight-style";
+const HIGHLIGHT_CLASS = "jobfill-needs-attention";
+function highlightManualField(el: HTMLElement): void {
+  ensureHighlightStyle();
+  el.classList.add(HIGHLIGHT_CLASS);
+  setTimeout(() => el.classList.remove(HIGHLIGHT_CLASS), 6000);
+}
+function ensureHighlightStyle(): void {
+  if (document.getElementById(HIGHLIGHT_STYLE_ID)) return;
+  const s = document.createElement("style");
+  s.id = HIGHLIGHT_STYLE_ID;
+  s.textContent = `
+    .${HIGHLIGHT_CLASS} {
+      outline: 2px dashed #f59e0b !important;
+      outline-offset: 2px !important;
+      animation: jobfill-pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes jobfill-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,.45); }
+      50%      { box-shadow: 0 0 0 6px rgba(245,158,11,0); }
+    }
+  `;
+  document.head.appendChild(s);
+}
+
+// Teach mode listens for Ctrl-click and only matters where the user can interact.
+// Skip it inside iframes that haven't opted in, to avoid intercepting clicks on
+// embedded ads/analytics/widgets.
+(async () => {
+  if (!inIframe || (await isIframeOptedIn())) attachTeachMode();
+  console.log("[jobfill] content ready", inIframe ? "(iframe)" : "");
+})();

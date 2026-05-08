@@ -70,7 +70,14 @@ export interface FieldSignature {
   name: string;
   id: string;
   placeholder: string;
-  type: string; // "text" | "email" | "tel" | "select" | "textarea" | "radio" | "checkbox" | …
+  type: string; // "text" | "email" | "tel" | "select" | "textarea" | "radio" | "checkbox" | "file" | …
+  // Workday and some other ATSes tag inputs with stable identifiers
+  // like data-automation-id="formField-gender". Optional for back-compat
+  // with mappings stored before v0.1.1.
+  data_automation_id?: string;
+  // Group label for checkboxes that share a logical question (e.g., race options
+  // inside a fieldset); set when a checkbox group is recognized. Empty otherwise.
+  group_label?: string;
 }
 
 export type FillKind =
@@ -90,6 +97,8 @@ export interface Mapping {
 export interface Settings {
   hotkey: string;
   auto_open_overlay: boolean;
+  // Hostnames where jobfill should also run inside iframes (default: top frame only).
+  iframe_domains: string[];
 }
 
 export interface Meta {

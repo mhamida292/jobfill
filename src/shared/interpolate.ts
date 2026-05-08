@@ -32,25 +32,46 @@ export function extractPageVars(doc: Document, url: URL): PageVars {
   let role = h1;
   if (!role && title) {
     const m = /^(.*?)\s+(?:at|@|—|-)\s+/i.exec(title);
-    role = m ? m[1]!.trim() : title;
+    role = stripTitleSuffix(m ? m[1]!.trim() : title);
   }
 
-  // Company: try title's "at X" suffix, else URL hostname segment.
+  // Company: try title's "at X" suffix first.
   let company = "";
   const titleAt = /\s+(?:at|@|—|-)\s+(.+)$/i.exec(title);
   if (titleAt) {
-    company = titleAt[1]!.trim();
+    company = stripTitleSuffix(titleAt[1]!.trim());
   } else {
-    const host = url.hostname;
-    // greenhouse: boards.greenhouse.io/acme/...
-    if (host.endsWith("greenhouse.io")) {
-      const seg = url.pathname.split("/").filter(Boolean)[0];
-      if (seg) company = seg;
-    } else {
-      const parts = host.split(".");
-      if (parts.length >= 2) company = parts[parts.length - 2]!;
-    }
+    company = companyFromHost(url);
   }
 
   return { company, role };
+}
+
+// Pull the brand segment out of a hostname.
+// - greenhouse.io → uses the first path segment (boards.greenhouse.io/acme/...)
+// - foo.com / bar.foo.com → "foo"
+// - localhost / single-label / IPs → return the host as-is so {{company}} isn't blank.
+function companyFromHost(url: URL): string {
+  const host = url.hostname;
+  if (!host) return "";
+  if (host.endsWith("greenhouse.io")) {
+    const seg = url.pathname.split("/").filter(Boolean)[0];
+    if (seg) return seg;
+  }
+  // IPv4 literal → no useful company name.
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return host;
+  const parts = host.split(".");
+  if (parts.length >= 2) return parts[parts.length - 2]!;
+  // Single label (e.g. "localhost"). Return as-is so {{company}} resolves to
+  // *something* during local testing.
+  return host;
+}
+
+// Page titles often append a brand or section after a separator
+// ("Acme | Careers", "Acme - Jobs", "Acme · Engineering"). Strip them.
+function stripTitleSuffix(s: string): string {
+  return s
+    .replace(/\s*[|·]\s+.+$/, "")
+    .replace(/\s+-\s+.+$/, "")
+    .trim();
 }

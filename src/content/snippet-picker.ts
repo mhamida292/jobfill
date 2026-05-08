@@ -104,31 +104,35 @@ export async function openSnippetPicker(target: HTMLElement, fieldTags: string[]
   const pageVars = extractPageVars(document, new URL(location.href));
   const questionText = inferQuestionText(target);
 
-  const root = document.createElement("div");
-  root.className = "jobfill-picker";
+  const root = el("div", { class: "jobfill-picker" });
   const rect = target.getBoundingClientRect();
   root.style.left = `${rect.left + window.scrollX}px`;
   root.style.top  = `${rect.bottom + window.scrollY + 4}px`;
-  root.innerHTML = `<input type="text" placeholder="Filter snippets…"/><ul></ul><div class="hint">↑↓ navigate · Enter insert · Esc cancel</div>`;
+
+  const filterInput = el("input", { type: "text", placeholder: "Filter snippets…" }) as HTMLInputElement;
+  const list = el("ul");
+  const hint = el("div", { class: "hint" }, "↑↓ navigate · Enter insert · Esc cancel");
+  root.appendChild(filterInput);
+  root.appendChild(list);
+  root.appendChild(hint);
 
   let filter = "";
   let sel = 0;
-  const input = root.querySelector("input")!;
-  const list = root.querySelector("ul")!;
 
   function render(): void {
     const ranked = rankSnippets(data.snippets, { fieldTags, questionText, filter });
-    list.innerHTML = ranked.map((r, i) => `
-      <li data-id="${r.snippet.id}" class="${i === sel ? "sel" : ""}">
-        ${escapeHtml(r.snippet.label)}${r.snippet.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("")}
-      </li>
-    `).join("");
-    list.querySelectorAll<HTMLLIElement>("li").forEach((li, i) => {
-      li.addEventListener("click", () => insert(ranked[i]!.snippet));
+    while (list.firstChild) list.removeChild(list.firstChild);
+    ranked.forEach((r, i) => {
+      const li = el("li", { "data-id": r.snippet.id, class: i === sel ? "sel" : "" },
+        r.snippet.label,
+      );
+      for (const t of r.snippet.tags) li.appendChild(el("span", { class: "tag" }, t));
+      li.addEventListener("click", () => insert(r.snippet));
+      list.appendChild(li);
     });
   }
 
-  function insert(s: import("../shared/types").Snippet): void {
+  function insert(s: Snippet): void {
     const out = interpolate(s.body, { company: pageVars.company, role: pageVars.role });
     if (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) {
       target.value = out.text;
@@ -142,8 +146,8 @@ export async function openSnippetPicker(target: HTMLElement, fieldTags: string[]
     closePicker();
   }
 
-  input.addEventListener("input", () => { filter = input.value; sel = 0; render(); });
-  input.addEventListener("keydown", (ev) => {
+  filterInput.addEventListener("input", () => { filter = filterInput.value; sel = 0; render(); });
+  filterInput.addEventListener("keydown", (ev) => {
     const ranked = rankSnippets(data.snippets, { fieldTags, questionText, filter });
     if (ev.key === "ArrowDown") { sel = Math.min(sel + 1, ranked.length - 1); render(); ev.preventDefault(); }
     if (ev.key === "ArrowUp")   { sel = Math.max(sel - 1, 0); render(); ev.preventDefault(); }
@@ -153,7 +157,7 @@ export async function openSnippetPicker(target: HTMLElement, fieldTags: string[]
 
   document.documentElement.appendChild(root);
   pickerRoot = root;
-  input.focus();
+  filterInput.focus();
   render();
 }
 
@@ -166,12 +170,17 @@ function inferQuestionText(target: HTMLElement): string {
   const aria = target.getAttribute("aria-label");
   if (aria) return aria;
   if (target.id) {
-    const lab = document.querySelector(`label[for="${target.id.replace(/[^a-zA-Z0-9_-]/g, "\\$&")}"]`);
+    const lab = document.querySelector(`label[for="${cssEscape(target.id)}"]`);
     if (lab?.textContent) return lab.textContent.trim();
   }
   const wrap = target.closest("label");
   if (wrap?.textContent) return wrap.textContent.trim();
   return target.getAttribute("placeholder") ?? "";
+}
+
+function cssEscape(s: string): string {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(s);
+  return s.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
 }
 
 function ensureStyle(): void {
@@ -182,6 +191,22 @@ function ensureStyle(): void {
   document.head.appendChild(s);
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]!));
+type ElAttrs = Record<string, string | boolean | number>;
+type ElChild = Node | string | null | undefined;
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K, attrs?: ElAttrs, ...children: ElChild[]
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  if (attrs) {
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === false || v === null || v === undefined) continue;
+      if (v === true) node.setAttribute(k, "");
+      else node.setAttribute(k, String(v));
+    }
+  }
+  for (const c of children) {
+    if (c === null || c === undefined) continue;
+    node.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+  }
+  return node;
 }

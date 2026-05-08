@@ -50,4 +50,43 @@ describe("resolveOption", () => {
     expect(r?.value).toBe("2");
     expect(r?.confidence).toBe("low");
   });
+
+  it("requires_sponsorship=true does NOT pick the negated 'I will not require sponsorship' option", () => {
+    // Token-fuzzy could share ["will","require","sponsorship"] across the two,
+    // but the negation guard rejects the "not" mismatch.
+    const opts = [
+      { value: "yes", text: "Yes, I will require sponsorship" },
+      { value: "no",  text: "No, I will not require sponsorship" },
+    ];
+    const r = resolveOption("personal.requires_sponsorship", "true", opts);
+    expect(r?.value).toBe("yes");
+  });
+
+  it("requires_sponsorship=false picks the negated option correctly", () => {
+    const opts = [
+      { value: "yes", text: "Yes, I will require sponsorship" },
+      { value: "no",  text: "No, I will not require sponsorship" },
+    ];
+    const r = resolveOption("personal.requires_sponsorship", "false", opts);
+    expect(r?.value).toBe("no");
+  });
+
+  it("race: matches 'Black or African American' from profile value 'black'", () => {
+    const opts = [
+      { value: "1", text: "Asian" },
+      { value: "2", text: "Black or African American" },
+      { value: "3", text: "White" },
+    ];
+    const r = resolveOption("personal.race", "black", opts);
+    expect(r?.value).toBe("2");
+  });
+
+  it("race: matches 'White / Caucasian' via synonym for 'white'", () => {
+    const opts = [
+      { value: "1", text: "Asian" },
+      { value: "2", text: "White / Caucasian" },
+    ];
+    const r = resolveOption("personal.race", "white", opts);
+    expect(r?.value).toBe("2");
+  });
 });

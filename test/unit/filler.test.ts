@@ -71,4 +71,55 @@ describe("fillElement", () => {
     fillElement(el, "true", profile);
     expect(el.checked).toBe(true);
   });
+
+  it("rejects file inputs with a manual-fill reason", () => {
+    const body = makeDoc(`<input id="resume" type="file">`);
+    const el = body.querySelector<HTMLInputElement>("#resume")!;
+    const r = fillElement(el, "/tmp/x.pdf", profile);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/file/i);
+  });
+
+  it("ticks only the matching option in a checkbox group (race/ethnicity)", () => {
+    const body = makeDoc(`
+      <form>
+        <fieldset>
+          <legend>Race / Ethnicity</legend>
+          <label><input type="checkbox" name="race" value="asian"> Asian</label>
+          <label><input type="checkbox" name="race" value="black"> Black or African American</label>
+          <label><input type="checkbox" name="race" value="white"> White</label>
+        </fieldset>
+      </form>
+    `);
+    const first = body.querySelector<HTMLInputElement>('input[value="asian"]')!;
+    const r = fillElement(first, "asian", profile, "personal.race");
+    expect(r.ok).toBe(true);
+    expect(body.querySelector<HTMLInputElement>('input[value="asian"]')!.checked).toBe(true);
+    expect(body.querySelector<HTMLInputElement>('input[value="black"]')!.checked).toBe(false);
+    expect(body.querySelector<HTMLInputElement>('input[value="white"]')!.checked).toBe(false);
+  });
+
+  it("checkbox group: matches by visible label text when value is opaque", () => {
+    const body = makeDoc(`
+      <form>
+        <fieldset>
+          <legend>Gender</legend>
+          <label><input type="checkbox" name="gender" value="g1"> Male</label>
+          <label><input type="checkbox" name="gender" value="g2"> Female</label>
+        </fieldset>
+      </form>
+    `);
+    const first = body.querySelector<HTMLInputElement>('input[value="g1"]')!;
+    const r = fillElement(first, "Female", profile, "personal.gender");
+    expect(r.ok).toBe(true);
+    expect(body.querySelector<HTMLInputElement>('input[value="g2"]')!.checked).toBe(true);
+  });
+
+  it("falls back to single-checkbox truthy-fill when not part of a group", () => {
+    const body = makeDoc(`<form><input id="tos" name="agree" type="checkbox"></form>`);
+    const el = body.querySelector<HTMLInputElement>("#tos")!;
+    const r = fillElement(el, "yes", profile, "personal.requires_sponsorship");
+    expect(r.ok).toBe(true);
+    expect(el.checked).toBe(true);
+  });
 });

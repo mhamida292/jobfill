@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "jobfill",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Auto-fill job application forms with your saved profile.",
   "browser_specific_settings": {
     "gecko": {
@@ -21,7 +21,8 @@
     {
       "matches": ["<all_urls>"],
       "js": ["content.js"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": true
     }
   ],
   "icons": {
@@ -40,11 +41,11 @@
   },
   "commands": {
     "fill-form": {
-      "suggested_key": { "default": "Ctrl+Shift+J" },
+      "suggested_key": { "default": "Ctrl+Alt+J" },
       "description": "Fill the current form with my profile"
     },
     "open-snippet-picker": {
-      "suggested_key": { "default": "Ctrl+Shift+K" },
+      "suggested_key": { "default": "Ctrl+Alt+K" },
       "description": "Open snippet picker on the focused field"
     }
   }

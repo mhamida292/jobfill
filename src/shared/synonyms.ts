@@ -20,6 +20,16 @@ const TABLE: Record<string, Record<string, string[]>> = {
     non_binary: ["Non-binary", "Nonbinary", "Non binary"],
     prefer_not: ["Prefer not to say", "Decline to self-identify"],
   },
+  "personal.race": {
+    asian: ["Asian", "Asian / Pacific Islander"],
+    black: ["Black", "Black or African American", "African American"],
+    white: ["White", "Caucasian", "White / Caucasian"],
+    hispanic: ["Hispanic", "Hispanic or Latino", "Latino", "Latinx"],
+    native_american: ["American Indian", "American Indian or Alaska Native", "Native American"],
+    pacific_islander: ["Native Hawaiian", "Pacific Islander", "Native Hawaiian or Other Pacific Islander"],
+    two_or_more: ["Two or More Races", "Multiracial", "Mixed"],
+    prefer_not: ["Prefer not to say", "Decline to self-identify", "I do not wish to answer"],
+  },
   "personal.veteran_status": {
     not_veteran: ["I am not a protected veteran", "Not a veteran"],
     veteran:     ["I identify as one or more of the classifications", "Protected veteran"],
@@ -57,24 +67,37 @@ export function resolveOption(
 
   // 3. Fuzzy contains: synonym substring within option text.
   for (const syn of synonyms) {
-    const hit = options.find(o => o.text.toLowerCase().includes(syn.toLowerCase()));
+    const hit = options.find(o =>
+      o.text.toLowerCase().includes(syn.toLowerCase()) && negationMatches(syn, o.text),
+    );
     if (hit) return { value: hit.value, confidence: "low" };
   }
 
   // 4. Token-level fuzzy: all words of a synonym appear in option text.
+  // Negation guard prevents "I will require sponsorship" from matching
+  // an option that says "I will not require sponsorship" (and vice versa).
   for (const syn of synonyms) {
     const tokens = syn.toLowerCase().split(/\s+/).filter(t => t.length > 2);
     if (tokens.length === 0) continue;
     const hit = options.find(o => {
       const text = o.text.toLowerCase();
-      return tokens.every(t => text.includes(t));
+      return tokens.every(t => text.includes(t)) && negationMatches(syn, text);
     });
     if (hit) return { value: hit.value, confidence: "low" };
   }
 
   // 5. Profile value substring within option text (last resort).
-  const fuzzy = options.find(o => o.text.toLowerCase().includes(profileValue.toLowerCase()));
+  const fuzzy = options.find(o =>
+    o.text.toLowerCase().includes(profileValue.toLowerCase()) &&
+    negationMatches(profileValue, o.text),
+  );
   if (fuzzy) return { value: fuzzy.value, confidence: "low" };
 
   return null;
+}
+
+// True when the synonym and the option agree on whether they're negated.
+// Stops fuzzy steps from confusing "I will require X" with "I will not require X".
+function negationMatches(syn: string, optText: string): boolean {
+  return /\bnot\b/i.test(syn) === /\bnot\b/i.test(optText);
 }

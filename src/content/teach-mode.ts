@@ -43,6 +43,7 @@ const PROFILE_PATHS = [
   "personal.linkedin_url", "personal.github_url", "personal.portfolio_url",
   "personal.work_authorization", "personal.requires_sponsorship",
   "personal.gender", "personal.race", "personal.veteran_status", "personal.disability_status",
+  "work_history.0.company", "work_history.0.title", "work_history.0.description", "work_history.0.location",
 ];
 
 let teachRoot: HTMLElement | null = null;
@@ -72,53 +73,62 @@ function isFillableTarget(el: HTMLElement): boolean {
 function openTeach(target: HTMLElement, x: number, y: number): void {
   closeTeach();
   const sig = signatureOf(target);
-  const root = document.createElement("div");
-  root.className = "jobfill-teach";
+  const root = el("div", { class: "jobfill-teach" });
   root.style.left = `${x}px`;
   root.style.top  = `${y}px`;
-  root.innerHTML = `
-    <h5>This field is…</h5>
-    <label><input type="radio" name="kind" value="profile_path" checked>
-      Profile field:
-      <select data-role="profile_select">
-        ${PROFILE_PATHS.map(p => `<option value="${p}">${p}</option>`).join("")}
-      </select>
-    </label>
-    <label><input type="radio" name="kind" value="literal">
-      Literal text:
-      <input type="text" data-role="literal_input" placeholder="e.g. Yes">
-    </label>
-    <label><input type="radio" name="kind" value="skip">
-      Skip on this domain (never auto-fill)
-    </label>
-    <label><input type="checkbox" data-role="exact_form">
-      Apply only to this exact form (not whole domain)
-    </label>
-    <div class="actions">
-      <button data-action="save">Save</button>
-      <button data-action="cancel" class="ghost">Cancel</button>
-    </div>
-  `;
 
-  root.querySelector('[data-action="cancel"]')!.addEventListener("click", closeTeach);
-  root.querySelector('[data-action="save"]')!.addEventListener("click", async () => {
-    const kind = (root.querySelector('input[name="kind"]:checked') as HTMLInputElement | null)?.value;
-    const exactForm = (root.querySelector('[data-role="exact_form"]') as HTMLInputElement).checked;
+  root.appendChild(el("h5", {}, "This field is…"));
+
+  const profilePathSelect = el("select", { "data-role": "profile_select" }) as HTMLSelectElement;
+  for (const p of PROFILE_PATHS) {
+    profilePathSelect.appendChild(el("option", { value: p }, p));
+  }
+
+  const radio = (value: string, checked = false): HTMLInputElement => {
+    const r = el("input", { type: "radio", name: "kind", value }) as HTMLInputElement;
+    r.checked = checked;
+    return r;
+  };
+
+  root.appendChild(el("label", {},
+    radio("profile_path", true),
+    document.createTextNode("Profile field: "),
+    profilePathSelect,
+  ));
+  const literalInput = el("input", { type: "text", "data-role": "literal_input", placeholder: "e.g. Yes" }) as HTMLInputElement;
+  root.appendChild(el("label", {},
+    radio("literal"),
+    document.createTextNode("Literal text: "),
+    literalInput,
+  ));
+  root.appendChild(el("label", {},
+    radio("skip"),
+    document.createTextNode("Skip on this domain (never auto-fill)"),
+  ));
+
+  const exactCb = el("input", { type: "checkbox", "data-role": "exact_form" }) as HTMLInputElement;
+  root.appendChild(el("label", {}, exactCb, document.createTextNode("Apply only to this exact form (not whole domain)")));
+
+  const saveBtn = el("button", { "data-action": "save" }, "Save");
+  const cancelBtn = el("button", { "data-action": "cancel", class: "ghost" }, "Cancel");
+  cancelBtn.addEventListener("click", closeTeach);
+  saveBtn.addEventListener("click", async () => {
+    const kindEl = root.querySelector('input[name="kind"]:checked') as HTMLInputElement | null;
+    const kind = kindEl?.value;
     let fills_with: FillKind | null = null;
     if (kind === "profile_path") {
-      const path = (root.querySelector('[data-role="profile_select"]') as HTMLSelectElement).value;
-      fills_with = { kind: "profile_path", path };
+      fills_with = { kind: "profile_path", path: profilePathSelect.value };
     } else if (kind === "literal") {
-      const value = (root.querySelector('[data-role="literal_input"]') as HTMLInputElement).value;
-      fills_with = { kind: "literal", value };
+      fills_with = { kind: "literal", value: literalInput.value };
     } else if (kind === "skip") {
       fills_with = { kind: "skip" };
     }
     if (!fills_with) return;
-    const mapping: Mapping = { field_signature: sig, fills_with, scope: exactForm ? "exact_form" : "domain" };
+    const mapping: Mapping = { field_signature: sig, fills_with, scope: exactCb.checked ? "exact_form" : "domain" };
     await addMapping(location.hostname, mapping);
     closeTeach();
   });
+  root.appendChild(el("div", { class: "actions" }, saveBtn, cancelBtn));
 
   document.documentElement.appendChild(root);
   teachRoot = root;
@@ -138,13 +148,16 @@ function onKeyDown(ev: KeyboardEvent): void {
 function signatureOf(el: HTMLElement): FieldSignature {
   let type = el.tagName.toLowerCase();
   if (el instanceof HTMLInputElement) type = el.type || "text";
-  return {
+  const sig: FieldSignature = {
     id: el.id ?? "",
     name: (el as HTMLInputElement).name ?? "",
     placeholder: (el as HTMLInputElement).placeholder ?? "",
     type,
     label: el.getAttribute("aria-label") ?? "",
   };
+  const aid = el.getAttribute("data-automation-id");
+  if (aid) sig.data_automation_id = aid;
+  return sig;
 }
 
 function ensureStyle(): void {
@@ -153,4 +166,24 @@ function ensureStyle(): void {
   s.id = "jobfill-teach-style";
   s.textContent = STYLE_CSS;
   document.head.appendChild(s);
+}
+
+type ElAttrs = Record<string, string | boolean | number>;
+type ElChild = Node | string | null | undefined;
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K, attrs?: ElAttrs, ...children: ElChild[]
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  if (attrs) {
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === false || v === null || v === undefined) continue;
+      if (v === true) node.setAttribute(k, "");
+      else node.setAttribute(k, String(v));
+    }
+  }
+  for (const c of children) {
+    if (c === null || c === undefined) continue;
+    node.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+  }
+  return node;
 }

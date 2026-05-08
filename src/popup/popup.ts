@@ -1,7 +1,6 @@
-import type { Profile, PersonalInfo, Snippet } from "../shared/types";
-import { loadAll, saveProfile, saveSnippets } from "../shared/storage";
-import { removeMapping, exportJson, importJson } from "../shared/storage";
-import type { Mapping } from "../shared/types";
+import type { Profile, PersonalInfo, Snippet, Mapping, Settings } from "../shared/types";
+import { loadAll, saveProfile, saveSnippets, saveSettings, removeMapping, exportJson, importJson } from "../shared/storage";
+import { interpolate } from "../shared/interpolate";
 
 const PERSONAL_FIELDS: { key: keyof PersonalInfo; type?: string }[] = [
   { key: "first_name" }, { key: "last_name" }, { key: "email", type: "email" },
@@ -12,8 +11,10 @@ const PERSONAL_FIELDS: { key: keyof PersonalInfo; type?: string }[] = [
   { key: "veteran_status" }, { key: "disability_status" },
 ];
 
+// Fake values used for snippet preview when no live page is available.
+const PREVIEW_VARS = { company: "Acme Inc.", role: "Software Engineer" };
+
 async function init(): Promise<void> {
-  // Tabs
   document.querySelectorAll<HTMLButtonElement>(".tabs button").forEach(btn => {
     btn.addEventListener("click", () => {
       document.querySelectorAll(".tabs button").forEach(b => b.classList.remove("active"));
@@ -26,34 +27,68 @@ async function init(): Promise<void> {
   const data = await loadAll();
   renderProfile(data.profile);
   renderSnippets(data.snippets);
-  renderMappings(data.mappings);
+  renderMappings(data.mappings, data.settings);
 }
+
+// ---------- DOM helpers ----------
+
+type ElAttrs = Record<string, string | boolean | number>;
+type ElChild = Node | string | null | undefined;
+
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K, attrs?: ElAttrs, ...children: ElChild[]
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  if (attrs) {
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === false || v === null || v === undefined) continue;
+      if (v === true) node.setAttribute(k, "");
+      else node.setAttribute(k, String(v));
+    }
+  }
+  for (const c of children) {
+    if (c === null || c === undefined) continue;
+    node.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+  }
+  return node;
+}
+
+function clear(node: Element): void {
+  while (node.firstChild) node.removeChild(node.firstChild);
+}
+
+function flashStatus(node: HTMLElement, text: string, ms = 1500): void {
+  node.textContent = text;
+  setTimeout(() => { node.textContent = ""; }, ms);
+}
+
+// ---------- Profile tab ----------
 
 function renderProfile(p: Profile): void {
   const personal = document.getElementById("personal-fields")!;
-  personal.innerHTML = PERSONAL_FIELDS.map(f => `
-    <label><span>${f.key}</span>
-      <input data-pkey="${f.key}" type="${f.type ?? "text"}" value="${escapeAttr(String(p.personal[f.key] ?? ""))}">
-    </label>
-  `).join("") + `
-    <label><span>requires_sponsorship</span>
-      <input data-pkey="requires_sponsorship" type="checkbox" ${p.personal.requires_sponsorship ? "checked" : ""}>
-    </label>
-  `;
+  clear(personal);
+
+  for (const f of PERSONAL_FIELDS) {
+    const input = el("input", {
+      "data-pkey": f.key,
+      type: f.type ?? "text",
+      value: String(p.personal[f.key] ?? ""),
+    });
+    personal.appendChild(el("label", {}, el("span", {}, f.key), input));
+  }
+  // requires_sponsorship is a boolean, rendered as a checkbox.
+  const cb = el("input", { "data-pkey": "requires_sponsorship", type: "checkbox" }) as HTMLInputElement;
+  cb.checked = p.personal.requires_sponsorship;
+  personal.appendChild(el("label", {}, el("span", {}, "requires_sponsorship"), cb));
 
   const workList = document.getElementById("work-list")!;
   const renderWork = (): void => {
-    workList.innerHTML = p.work_history.map((w, i) => `
-      <div class="row">
-        <input placeholder="Company" data-w="${i}" data-k="company" value="${escapeAttr(w.company)}">
-        <input placeholder="Title"   data-w="${i}" data-k="title"   value="${escapeAttr(w.title)}">
-        <input placeholder="YYYY-MM" data-w="${i}" data-k="start_date" value="${escapeAttr(w.start_date)}">
-        <input placeholder="YYYY-MM" data-w="${i}" data-k="end_date"   value="${escapeAttr(w.end_date)}">
-        <button data-action="rm-work" data-i="${i}">×</button>
-      </div>
-    `).join("");
-    workList.querySelectorAll<HTMLButtonElement>('[data-action="rm-work"]').forEach(btn => {
-      btn.addEventListener("click", () => { p.work_history.splice(Number(btn.dataset["i"]), 1); renderWork(); });
+    clear(workList);
+    p.work_history.forEach((w, i) => {
+      workList.appendChild(workRow(w, i, () => {
+        p.work_history.splice(i, 1);
+        renderWork();
+      }));
     });
   };
   renderWork();
@@ -65,16 +100,12 @@ function renderProfile(p: Profile): void {
 
   const eduList = document.getElementById("edu-list")!;
   const renderEdu = (): void => {
-    eduList.innerHTML = p.education.map((e, i) => `
-      <div class="row">
-        <input placeholder="School" data-e="${i}" data-k="school" value="${escapeAttr(e.school)}">
-        <input placeholder="Degree" data-e="${i}" data-k="degree" value="${escapeAttr(e.degree)}">
-        <input placeholder="Field"  data-e="${i}" data-k="field"  value="${escapeAttr(e.field)}">
-        <button data-action="rm-edu" data-i="${i}">×</button>
-      </div>
-    `).join("");
-    eduList.querySelectorAll<HTMLButtonElement>('[data-action="rm-edu"]').forEach(btn => {
-      btn.addEventListener("click", () => { p.education.splice(Number(btn.dataset["i"]), 1); renderEdu(); });
+    clear(eduList);
+    p.education.forEach((e, i) => {
+      eduList.appendChild(eduRow(e, i, () => {
+        p.education.splice(i, 1);
+        renderEdu();
+      }));
     });
   };
   renderEdu();
@@ -85,138 +116,310 @@ function renderProfile(p: Profile): void {
   });
 
   document.getElementById("save-profile")!.addEventListener("click", async () => {
-    // Read personal
     document.querySelectorAll<HTMLInputElement>("[data-pkey]").forEach(input => {
       const key = input.dataset["pkey"] as keyof PersonalInfo;
       if (input.type === "checkbox") (p.personal as Record<keyof PersonalInfo, unknown>)[key] = input.checked;
       else (p.personal as Record<keyof PersonalInfo, unknown>)[key] = input.value;
     });
-    // Read work history
-    document.querySelectorAll<HTMLInputElement>("[data-w]").forEach(input => {
+    document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[data-w]").forEach(input => {
       const i = Number(input.dataset["w"]);
       const k = input.dataset["k"] as keyof Profile["work_history"][number];
-      (p.work_history[i]! as unknown as Record<string, unknown>)[k] = input.value;
+      const w = p.work_history[i]!;
+      if (input instanceof HTMLInputElement && input.type === "checkbox") {
+        (w as unknown as Record<string, unknown>)[k] = input.checked;
+      } else {
+        (w as unknown as Record<string, unknown>)[k] = input.value;
+      }
     });
-    // Read education
     document.querySelectorAll<HTMLInputElement>("[data-e]").forEach(input => {
       const i = Number(input.dataset["e"]);
       const k = input.dataset["k"] as keyof Profile["education"][number];
       (p.education[i]! as unknown as Record<string, unknown>)[k] = input.value;
     });
     await saveProfile(p);
-    document.getElementById("save-status")!.textContent = "Saved";
-    setTimeout(() => { document.getElementById("save-status")!.textContent = ""; }, 1500);
+    flashStatus(document.getElementById("save-status")!, "Saved");
   });
 }
 
-function escapeAttr(s: string): string {
-  return s.replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]!));
+function workRow(w: Profile["work_history"][number], i: number, onRemove: () => void): HTMLElement {
+  const row = el("div", { class: "row" });
+  const inp = (k: string, placeholder: string, value: string, type = "text"): HTMLInputElement =>
+    el("input", { "data-w": i, "data-k": k, placeholder, type, value }) as HTMLInputElement;
+
+  row.appendChild(inp("company",    "Company",  w.company));
+  row.appendChild(inp("title",      "Title",    w.title));
+  row.appendChild(inp("location",   "Location", w.location));
+
+  const dateRow = el("div", { class: "inline-pair" },
+    inp("start_date", "Start (YYYY-MM)", w.start_date),
+    inp("end_date",   "End (YYYY-MM)",   w.end_date),
+  );
+  row.appendChild(dateRow);
+
+  const currentCb = el("input", {
+    "data-w": i, "data-k": "current", type: "checkbox",
+  }) as HTMLInputElement;
+  currentCb.checked = w.current;
+  // When "current" is checked, end_date is meaningless; visually fade it.
+  const endInput = row.querySelector<HTMLInputElement>(`[data-k="end_date"][data-w="${i}"]`)!;
+  const syncEndDisable = (): void => {
+    endInput.disabled = currentCb.checked;
+    endInput.style.opacity = currentCb.checked ? "0.5" : "1";
+    if (currentCb.checked) endInput.value = "";
+  };
+  syncEndDisable();
+  currentCb.addEventListener("change", syncEndDisable);
+  row.appendChild(el("label", { class: "checkbox-row" },
+    currentCb, el("span", {}, "Current role"),
+  ));
+
+  const desc = el("textarea", {
+    "data-w": i, "data-k": "description",
+    placeholder: "Describe your responsibilities, achievements, technologies used…",
+  }) as HTMLTextAreaElement;
+  desc.value = w.description;
+  row.appendChild(desc);
+
+  const removeBtn = el("button", { "data-action": "rm-work", "data-i": i }, "×");
+  removeBtn.addEventListener("click", onRemove);
+  row.appendChild(removeBtn);
+  return row;
 }
+
+function eduRow(e: Profile["education"][number], i: number, onRemove: () => void): HTMLElement {
+  const row = el("div", { class: "row" });
+  const inp = (k: string, placeholder: string, value: string): HTMLInputElement =>
+    el("input", { "data-e": i, "data-k": k, placeholder, value }) as HTMLInputElement;
+  row.appendChild(inp("school", "School", e.school));
+  row.appendChild(inp("degree", "Degree", e.degree));
+  row.appendChild(inp("field",  "Field",  e.field));
+  const removeBtn = el("button", { "data-action": "rm-edu", "data-i": i }, "×");
+  removeBtn.addEventListener("click", onRemove);
+  row.appendChild(removeBtn);
+  return row;
+}
+
+// ---------- Snippets tab ----------
 
 function renderSnippets(snippets: Snippet[]): void {
   const root = document.getElementById("tab-snippets")!;
-  const ensureSnippetIds = (s: Snippet[]): void => {
-    for (const x of s) if (!x.id) x.id = crypto.randomUUID();
-  };
-  ensureSnippetIds(snippets);
+  for (const s of snippets) if (!s.id) s.id = crypto.randomUUID();
 
   const draw = (): void => {
-    root.innerHTML = `
-      <h3>Snippets</h3>
-      <div id="snippet-list">
-        ${snippets.map((s, i) => `
-          <div class="row">
-            <input data-s="${i}" data-k="label" placeholder="Label" value="${escapeAttr(s.label)}" style="width:100%">
-            <input data-s="${i}" data-k="tags"  placeholder="Tags (comma-separated)" value="${escapeAttr(s.tags.join(","))}" style="width:100%">
-            <textarea data-s="${i}" data-k="body" placeholder="Body. Use {{company}} and {{role}} for interpolation.">${escapeAttr(s.body)}</textarea>
-            <button data-action="rm-s" data-i="${i}">Delete</button>
-          </div>
-        `).join("")}
-      </div>
-      <div class="footer">
-        <button id="add-s" class="ghost">+ Add snippet</button>
-        <button id="save-s">Save</button>
-        <span id="snippet-status"></span>
-      </div>
-    `;
-    root.querySelector("#add-s")!.addEventListener("click", () => {
+    clear(root);
+    root.appendChild(el("h3", {}, "Snippets"));
+    const list = el("div", { id: "snippet-list" });
+    snippets.forEach((s, i) => list.appendChild(snippetRow(s, i, () => {
+      snippets.splice(i, 1);
+      draw();
+    })));
+    root.appendChild(list);
+
+    const addBtn = el("button", { id: "add-s", class: "ghost" }, "+ Add snippet");
+    addBtn.addEventListener("click", () => {
       snippets.push({ id: crypto.randomUUID(), label: "", body: "", tags: [] });
       draw();
     });
-    root.querySelectorAll<HTMLButtonElement>('[data-action="rm-s"]').forEach(btn => {
-      btn.addEventListener("click", () => { snippets.splice(Number(btn.dataset["i"]), 1); draw(); });
-    });
-    root.querySelector("#save-s")!.addEventListener("click", async () => {
-      // Read inputs
-      root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[data-s]").forEach(el => {
-        const i = Number(el.dataset["s"]);
-        const k = el.dataset["k"] as "label" | "tags" | "body";
-        if (k === "tags") snippets[i]!.tags = el.value.split(",").map(t => t.trim()).filter(Boolean);
-        else (snippets[i] as unknown as Record<string, unknown>)[k] = el.value;
+    const saveBtn = el("button", { id: "save-s" }, "Save");
+    const status = el("span", { id: "snippet-status" });
+    saveBtn.addEventListener("click", async () => {
+      root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[data-s]").forEach(input => {
+        const i = Number(input.dataset["s"]);
+        const k = input.dataset["k"] as "label" | "tags" | "body";
+        if (k === "tags") snippets[i]!.tags = input.value.split(",").map(t => t.trim()).filter(Boolean);
+        else (snippets[i] as unknown as Record<string, unknown>)[k] = input.value;
       });
       await saveSnippets(snippets);
-      const status = root.querySelector("#snippet-status") as HTMLElement;
-      status.textContent = "Saved";
-      setTimeout(() => { status.textContent = ""; }, 1500);
+      flashStatus(status, "Saved");
     });
+    root.appendChild(el("div", { class: "footer" }, addBtn, saveBtn, status));
   };
   draw();
 }
 
-function renderMappings(mappings: Record<string, Mapping[]>): void {
+function snippetRow(s: Snippet, i: number, onRemove: () => void): HTMLElement {
+  const row = el("div", { class: "row" });
+  const labelInput = el("input", {
+    "data-s": i, "data-k": "label", placeholder: "Label", value: s.label,
+  }) as HTMLInputElement;
+  const tagsInput = el("input", {
+    "data-s": i, "data-k": "tags", placeholder: "Tags (comma-separated)", value: s.tags.join(","),
+  }) as HTMLInputElement;
+  const body = el("textarea", {
+    "data-s": i, "data-k": "body",
+    placeholder: "Body. Use {{company}} and {{role}} for interpolation.",
+  }) as HTMLTextAreaElement;
+  body.value = s.body;
+
+  const previewBlock = el("div", { class: "snippet-preview" });
+  previewBlock.style.display = "none";
+
+  const previewBtn = el("button", { class: "ghost" }, "Preview");
+  previewBtn.addEventListener("click", () => {
+    if (previewBlock.style.display === "none") {
+      renderPreview(previewBlock, body.value);
+      previewBtn.textContent = "Hide preview";
+      previewBlock.style.display = "block";
+    } else {
+      previewBtn.textContent = "Preview";
+      previewBlock.style.display = "none";
+    }
+  });
+
+  const removeBtn = el("button", { "data-action": "rm-s", "data-i": i }, "Delete");
+  removeBtn.addEventListener("click", onRemove);
+
+  row.appendChild(labelInput);
+  row.appendChild(tagsInput);
+  row.appendChild(body);
+  row.appendChild(el("div", { class: "snippet-actions" }, previewBtn, removeBtn));
+  row.appendChild(previewBlock);
+  return row;
+}
+
+// Render the snippet body with {{company}}/{{role}} resolved against fake values.
+// Unresolved vars are wrapped in a yellow chip so the user sees what's missing.
+function renderPreview(target: HTMLElement, body: string): void {
+  clear(target);
+  const out = interpolate(body, PREVIEW_VARS);
+  // Walk the result and turn any leftover {{var}} into a span; everything else is plain text.
+  const parts = out.text.split(/(\{\{\s*\w+\s*\}\})/g);
+  for (const part of parts) {
+    const m = /^\{\{\s*(\w+)\s*\}\}$/.exec(part);
+    if (m) {
+      target.appendChild(el("span", { class: "unresolved" }, part));
+    } else if (part) {
+      target.appendChild(document.createTextNode(part));
+    }
+  }
+  if (out.unresolved.length === 0 && body.trim().length > 0) {
+    target.appendChild(el("div", { class: "preview-hint" },
+      `Preview uses fake values: company="${PREVIEW_VARS.company}", role="${PREVIEW_VARS.role}".`));
+  }
+}
+
+// ---------- Mappings tab ----------
+
+function renderMappings(mappings: Record<string, Mapping[]>, settings: Settings): void {
   const root = document.getElementById("tab-mappings")!;
   const draw = (): void => {
+    clear(root);
+    root.appendChild(el("h3", {}, "Learned mappings"));
     const domains = Object.keys(mappings).sort();
-    root.innerHTML = `
-      <h3>Learned mappings</h3>
-      ${domains.length === 0 ? "<p>No mappings learned yet. Ctrl-click a field on a form to teach jobfill.</p>" : ""}
-      ${domains.map(d => `
-        <details><summary>${escapeAttr(d)} (${mappings[d]!.length})</summary>
-          <ul>
-            ${mappings[d]!.map((m, i) => `
-              <li>
-                <code>${escapeAttr(m.field_signature.label || m.field_signature.name || m.field_signature.id || "(field)")}</code>
-                → <code>${escapeAttr(describeFill(m))}</code>
-                <button data-action="rm-m" data-d="${escapeAttr(d)}" data-i="${i}">×</button>
-              </li>
-            `).join("")}
-          </ul>
-        </details>
-      `).join("")}
-      <div class="footer">
-        <button id="export-json">Export JSON</button>
-        <button id="import-json" class="ghost">Import JSON</button>
-        <input id="import-file" type="file" accept=".json" style="display:none">
-      </div>
-    `;
-    root.querySelectorAll<HTMLButtonElement>('[data-action="rm-m"]').forEach(btn => {
-      btn.addEventListener("click", async () => {
-        await removeMapping(btn.dataset["d"]!, Number(btn.dataset["i"]));
-        const data = await loadAll();
-        renderMappings(data.mappings);
+    if (domains.length === 0) {
+      root.appendChild(el("p", {},
+        "No mappings learned yet. Ctrl-click a field on a form to teach jobfill."));
+    }
+    for (const d of domains) {
+      const det = el("details");
+      det.appendChild(el("summary", {}, `${d} (${mappings[d]!.length})`));
+      const ul = el("ul");
+      mappings[d]!.forEach((m, i) => {
+        const li = el("li");
+        li.appendChild(el("code", {},
+          m.field_signature.label || m.field_signature.name || m.field_signature.id || "(field)"));
+        li.appendChild(document.createTextNode(" → "));
+        li.appendChild(el("code", {}, describeFill(m)));
+        const rm = el("button", { "data-action": "rm-m" }, "×");
+        rm.addEventListener("click", async () => {
+          await removeMapping(d, i);
+          const data = await loadAll();
+          renderMappings(data.mappings, data.settings);
+        });
+        li.appendChild(rm);
+        ul.appendChild(li);
       });
-    });
-    root.querySelector("#export-json")!.addEventListener("click", async () => {
+      det.appendChild(ul);
+      root.appendChild(det);
+    }
+    const exportBtn = el("button", { id: "export-json" }, "Export JSON");
+    exportBtn.addEventListener("click", async () => {
       const json = await exportJson();
       const blob = new Blob([json], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url; a.download = `jobfill-export-${new Date().toISOString().slice(0,10)}.json`;
+      a.href = url;
+      a.download = `jobfill-export-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
     });
-    root.querySelector("#import-json")!.addEventListener("click", () => {
-      (root.querySelector("#import-file") as HTMLInputElement).click();
-    });
-    root.querySelector("#import-file")!.addEventListener("change", async (ev) => {
-      const file = (ev.target as HTMLInputElement).files?.[0];
+    const importBtn = el("button", { id: "import-json", class: "ghost" }, "Import JSON");
+    const importFile = el("input", { id: "import-file", type: "file", accept: ".json" }) as HTMLInputElement;
+    importFile.style.display = "none";
+    const importStatus = el("span", { class: "import-status" });
+    importBtn.addEventListener("click", () => importFile.click());
+    importFile.addEventListener("change", async () => {
+      const file = importFile.files?.[0];
       if (!file) return;
       const text = await file.text();
-      await importJson(text);
-      window.location.reload();
+      try {
+        await importJson(text);
+        window.location.reload();
+      } catch (err) {
+        importStatus.textContent = `Import failed: ${(err as Error).message}`;
+        importStatus.classList.add("error");
+      }
+    });
+    root.appendChild(el("div", { class: "footer" }, exportBtn, importBtn, importFile, importStatus));
+
+    // Iframe opt-in: jobfill normally only runs in top frames. Some ATSes
+    // (older Workday flows, custom-vendor portals) host the application form
+    // in an iframe. Adding the iframe's hostname here lets jobfill scan inside it.
+    root.appendChild(renderIframeDomains(settings));
+  };
+  draw();
+}
+
+function renderIframeDomains(settings: Settings): HTMLElement {
+  const wrap = el("div", { class: "iframe-domains" });
+  wrap.appendChild(el("h3", {}, "Iframe opt-in"));
+  wrap.appendChild(el("p", { class: "hint" },
+    "Hostnames where jobfill should also run inside iframes. Leave empty to keep the default top-frame-only behavior."));
+
+  const list = el("ul", { class: "iframe-list" });
+  const status = el("span", { class: "import-status" });
+
+  const draw = (): void => {
+    while (list.firstChild) list.removeChild(list.firstChild);
+    if (settings.iframe_domains.length === 0) {
+      list.appendChild(el("li", { class: "empty" }, "(none)"));
+    }
+    settings.iframe_domains.forEach((d, i) => {
+      const li = el("li");
+      li.appendChild(el("code", {}, d));
+      const rm = el("button", { class: "ghost" }, "×");
+      rm.addEventListener("click", async () => {
+        settings.iframe_domains.splice(i, 1);
+        await saveSettings(settings);
+        draw();
+      });
+      li.appendChild(rm);
+      list.appendChild(li);
     });
   };
   draw();
+
+  const input = el("input", { type: "text", placeholder: "e.g. apply.workable.com" }) as HTMLInputElement;
+  const addBtn = el("button", {}, "Add");
+  const submit = async (): Promise<void> => {
+    const v = input.value.trim().toLowerCase();
+    if (!v) return;
+    if (settings.iframe_domains.includes(v)) {
+      flashStatus(status, "Already added");
+      return;
+    }
+    settings.iframe_domains.push(v);
+    await saveSettings(settings);
+    input.value = "";
+    draw();
+    flashStatus(status, "Added");
+  };
+  addBtn.addEventListener("click", submit);
+  input.addEventListener("keydown", (ev) => { if (ev.key === "Enter") submit(); });
+
+  wrap.appendChild(list);
+  wrap.appendChild(el("div", { class: "iframe-add" }, input, addBtn, status));
+  return wrap;
 }
 
 function describeFill(m: Mapping): string {

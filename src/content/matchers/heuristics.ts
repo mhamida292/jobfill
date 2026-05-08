@@ -5,9 +5,11 @@ import type { FieldSignature, FillKind } from "../../shared/types";
 const B = "(?:^|[^a-zA-Z0-9])"; // prefix
 const E = "(?=[^a-zA-Z0-9]|$)"; // suffix (lookahead, doesn't consume)
 
+type RuleField = "label" | "name" | "id" | "placeholder" | "group_label" | "data_automation_id";
+
 interface Rule {
   regex: RegExp;
-  match: ("label" | "name" | "id" | "placeholder")[];
+  match: RuleField[];
   fills_with: FillKind;
   tags?: string[];
 }
@@ -29,10 +31,19 @@ const RULES: Rule[] = [
   { regex: new RegExp(`${B}(portfolio|website|personal[\\s_-]?site)${E}`, "i"), match: ["name","id","label","placeholder"], fills_with: { kind: "profile_path", path: "personal.portfolio_url" } },
   { regex: /work[\s_-]?auth(orization)?/i,                      match: ["name","id","label"],                fills_with: { kind: "profile_path", path: "personal.work_authorization" } },
   { regex: /(sponsor|sponsorship)/i,                            match: ["name","id","label"],                fills_with: { kind: "profile_path", path: "personal.requires_sponsorship" } },
-  { regex: new RegExp(`${B}gender${E}`, "i"),                   match: ["name","id","label"],                fills_with: { kind: "profile_path", path: "personal.gender" } },
-  { regex: new RegExp(`${B}(ethnicity|race)${E}`, "i"),         match: ["name","id","label"],                fills_with: { kind: "profile_path", path: "personal.race" } },
-  { regex: new RegExp(`${B}veteran${E}`, "i"),                  match: ["name","id","label"],                fills_with: { kind: "profile_path", path: "personal.veteran_status" } },
-  { regex: new RegExp(`${B}disability${E}`, "i"),               match: ["name","id","label"],                fills_with: { kind: "profile_path", path: "personal.disability_status" } },
+  { regex: new RegExp(`${B}gender${E}`, "i"),                   match: ["name","id","label","group_label","data_automation_id"], fills_with: { kind: "profile_path", path: "personal.gender" } },
+  { regex: new RegExp(`${B}(ethnicity|race)${E}`, "i"),         match: ["name","id","label","group_label","data_automation_id"], fills_with: { kind: "profile_path", path: "personal.race" } },
+  { regex: new RegExp(`${B}veteran${E}`, "i"),                  match: ["name","id","label","group_label","data_automation_id"], fills_with: { kind: "profile_path", path: "personal.veteran_status" } },
+  { regex: new RegExp(`${B}disability${E}`, "i"),               match: ["name","id","label","group_label","data_automation_id"], fills_with: { kind: "profile_path", path: "personal.disability_status" } },
+
+  // Work history descriptions: "Describe your role", "Responsibilities", "Duties"
+  // map to the most recent work history entry's description.
+  { regex: /describe\s+your\s+(role|responsibilities|duties|position|work)/i,
+    match: ["label","placeholder"],
+    fills_with: { kind: "profile_path", path: "work_history.0.description" } },
+  { regex: /(^|[^a-zA-Z])(responsibilities|duties|job\s+description)([^a-zA-Z]|$)/i,
+    match: ["label","placeholder","name","id"],
+    fills_with: { kind: "profile_path", path: "work_history.0.description" } },
 
   // Snippet triggers (textareas only, semantically)
   { regex: /cover[\s_-]?letter/i,                               match: ["name","id","label","placeholder"], fills_with: { kind: "snippet_id", id: "" }, tags: ["cover-letter"] },
@@ -52,7 +63,7 @@ export function matchHeuristic(sig: FieldSignature): HeuristicMatch | null {
   for (const rule of RULES) {
     for (const where of rule.match) {
       const haystack = sig[where];
-      if (haystack && rule.regex.test(haystack)) {
+      if (typeof haystack === "string" && haystack && rule.regex.test(haystack)) {
         return { fills_with: rule.fills_with, tags: rule.tags ?? [] };
       }
     }
