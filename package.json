@@ -8,6 +8,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "run:firefox": "web-ext run --source-dir=dist",
+    "package": "web-ext build --source-dir=dist --overwrite-dest",
     "sign": "web-ext sign --source-dir=dist --channel=unlisted",
     "typecheck": "tsc --noEmit"
   },
